@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errors";
 import { daysSince } from "@/lib/streak";
 import { Flame, Skull, Globe, Lock, Trash2, Share2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -54,7 +55,21 @@ export default function CounterDetail() {
   useEffect(() => { load(); }, [id]);
 
   if (loading) return <div className="min-h-screen"><Navbar /><div className="container py-20 text-center text-muted-foreground">Loading…</div></div>;
-  if (!counter) return <div className="min-h-screen"><Navbar /><div className="container py-20 text-center"><p className="text-muted-foreground">Counter not found, or it's private.</p><Link to="/" className="text-accent hover:underline">Go home</Link></div></div>;
+  if (!counter) return (
+    <div className="min-h-screen">
+      <Navbar />
+      <div className="container py-20 text-center max-w-md">
+        <Lock className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
+        <h1 className="font-display text-2xl font-bold mb-2">Can't open this counter</h1>
+        <p className="text-muted-foreground mb-4">
+          {user ? "It's private, deleted, or doesn't belong to you." : "It might be private. Try signing in."}
+        </p>
+        <Link to={user ? "/dashboard" : "/auth"} className="text-accent hover:underline">
+          {user ? "Back to dashboard" : "Sign in"}
+        </Link>
+      </div>
+    </div>
+  );
 
   const isOwner = user?.id === counter.owner_id;
   const days = daysSince(counter.started_at);
@@ -69,7 +84,7 @@ export default function CounterDetail() {
     const { error } = await supabase.from("counter_resets").insert({
       counter_id: counter.id, streak_days: streak, note: resetNote || null,
     });
-    if (error) return toast.error(error.message);
+    if (error) return toastError(error, "Couldn't reset");
     toast(`💀 Reset to 0. Best streak: ${Math.max(streak, counter.best_streak_days)} days.`);
     setResetNote(""); setResetOpen(false);
     load();
@@ -78,7 +93,7 @@ export default function CounterDetail() {
   async function togglePublic(v: boolean) {
     if (!counter) return;
     const { error } = await supabase.from("counters").update({ is_public: v }).eq("id", counter.id);
-    if (error) return toast.error(error.message);
+    if (error) return toastError(error, "Couldn't update visibility");
     setCounter({ ...counter, is_public: v });
     toast.success(v ? "Counter is now public" : "Counter is private");
   }
@@ -86,19 +101,23 @@ export default function CounterDetail() {
   async function deleteCounter() {
     if (!counter) return;
     const { error } = await supabase.from("counters").delete().eq("id", counter.id);
-    if (error) return toast.error(error.message);
+    if (error) return toastError(error, "Couldn't delete");
     toast.success("Deleted");
     window.location.href = "/dashboard";
   }
 
   async function react(kind: "cheer" | "shame") {
     if (!user) return toast.error("Sign in to react");
-    if (!counter?.is_public) return;
+    if (!counter?.is_public) return toast.error("This counter is private");
     const mine = reactions.find((r) => r.user_id === user.id && r.kind === kind);
     if (mine) {
-      await supabase.from("counter_reactions").delete().eq("id", mine.id);
+      const { error } = await supabase.from("counter_reactions").delete().eq("id", mine.id);
+      if (error) return toastError(error, "Couldn't remove reaction");
     } else {
-      await supabase.from("counter_reactions").insert({ counter_id: counter.id, user_id: user.id, kind });
+      const { error } = await supabase
+        .from("counter_reactions")
+        .insert({ counter_id: counter.id, user_id: user.id, kind });
+      if (error) return toastError(error, "Couldn't react");
     }
     load();
   }
