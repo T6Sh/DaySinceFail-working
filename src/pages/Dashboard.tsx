@@ -241,7 +241,7 @@ export default function Dashboard() {
                 type="button"
                 variant="ghost"
                 className="flex-1"
-                onClick={() => setOnboardOpen(false)}
+                onClick={dismissOnboarding}
               >
                 Skip for now
               </Button>
