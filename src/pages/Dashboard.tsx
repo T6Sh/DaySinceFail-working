@@ -24,11 +24,24 @@ type Counter = {
   is_public: boolean;
 };
 
+const ONBOARDING_SUGGESTIONS = [
+  { label: "🏋️ Skipped the gym", category: "fitness" },
+  { label: "🍔 Ate junk food", category: "diet" },
+  { label: "📱 Doomscrolled", category: "productivity" },
+  { label: "💤 Stayed up too late", category: "sleep" },
+  { label: "🚬 Smoked", category: "vices" },
+];
+
 export default function Dashboard() {
   const { user } = useAuth();
+  const [params, setParams] = useSearchParams();
   const [counters, setCounters] = useState<Counter[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [onboardOpen, setOnboardOpen] = useState(false);
+  const [onboardTitle, setOnboardTitle] = useState("");
+  const [onboardCategory, setOnboardCategory] = useState("general");
+  const [onboardBusy, setOnboardBusy] = useState(false);
   const [profile, setProfile] = useState<{ username: string } | null>(null);
 
   // form
@@ -46,9 +59,37 @@ export default function Dashboard() {
     setCounters((cs ?? []) as Counter[]);
     setProfile(pr);
     setLoading(false);
+    // Show onboarding if explicitly asked, or on first dashboard visit with no counters.
+    const flagged = params.get("onboarding") === "1";
+    if ((flagged || (cs ?? []).length === 0) && !open) {
+      setOnboardOpen(true);
+    }
+    if (flagged) {
+      params.delete("onboarding");
+      setParams(params, { replace: true });
+    }
   }
 
   useEffect(() => { load(); }, [user]);
+
+  async function createOnboarding(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !onboardTitle.trim()) return;
+    setOnboardBusy(true);
+    const { error } = await supabase.from("counters").insert({
+      owner_id: user.id,
+      title: onboardTitle.trim(),
+      category: onboardCategory || "general",
+      is_public: false,
+    });
+    setOnboardBusy(false);
+    if (error) return toastError(error, "Couldn't create counter");
+    toast.success("First counter started — good luck!");
+    setOnboardOpen(false);
+    setOnboardTitle("");
+    setOnboardCategory("general");
+    load();
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
