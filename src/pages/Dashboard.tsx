@@ -191,7 +191,7 @@ export default function Dashboard() {
         )}
       </main>
 
-      <Dialog open={onboardOpen} onOpenChange={setOnboardOpen}>
+      <Dialog open={onboardOpen} onOpenChange={(o) => { if (!o) dismissOnboarding(); else setOnboardOpen(true); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
