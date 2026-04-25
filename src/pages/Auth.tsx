@@ -110,6 +110,22 @@ export default function Auth() {
             {mode === "signup" ? "Start counting your slip-ups." : mode === "forgot" ? "We'll email you a link." : "Pick up where you left off."}
           </p>
 
+          {verifyState !== "idle" && (
+            <div className="mb-5 flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-sm">
+              {verifyState === "checking" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span>Setting up your profile…</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-accent" />
+                  <span>Profile ready — taking you in.</span>
+                </>
+              )}
+            </div>
+          )}
+
           {mode !== "forgot" && (
             <>
               <Button variant="outline" className="w-full mb-4" onClick={google} type="button">
@@ -133,6 +149,9 @@ export default function Auth() {
             <div>
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              {mode === "signup" && (
+                <p className="text-xs text-muted-foreground mt-1">{ALLOWED_EMAIL_HINT}</p>
+              )}
             </div>
             {mode !== "forgot" && (
               <div>
