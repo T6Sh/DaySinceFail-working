@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { CounterCard } from "@/components/CounterCard";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { toastError } from "@/lib/errors";
 import { daysSince } from "@/lib/streak";
 import { formatDistanceToNow } from "date-fns";
-import { Flame, Skull, Trophy, Activity } from "lucide-react";
+import { Flame, Skull, Trophy, Activity, UserPlus, UserCheck, Link2, ArrowDownUp } from "lucide-react";
 
 type Profile = {
   id: string;
@@ -32,6 +36,30 @@ export default function PublicProfile() {
   const [counters, setCounters] = useState<Counter[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [sortDir, setSortDir] = useState<"oldest" | "newest">("oldest");
+  const { user } = useAuth();
+
+  async function loadFollow(profileId: string) {
+    const { count } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("followee_id", profileId);
+    setFollowerCount(count ?? 0);
+    if (user) {
+      const { data: mine } = await supabase
+        .from("follows")
+        .select("id")
+        .eq("follower_id", user.id)
+        .eq("followee_id", profileId)
+        .maybeSingle();
+      setIsFollowing(!!mine);
+    } else {
+      setIsFollowing(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -48,8 +76,7 @@ export default function PublicProfile() {
           .from("counters")
           .select("*")
           .eq("owner_id", p.id)
-          .eq("is_public", true)
-          .order("started_at", { ascending: true });
+          .eq("is_public", true);
         const list = (cs ?? []) as Counter[];
         setCounters(list);
         if (list.length) {
@@ -64,10 +91,59 @@ export default function PublicProfile() {
         } else {
           setReactions([]);
         }
+        await loadFollow(p.id);
       }
       setLoading(false);
     })();
-  }, [username]);
+  }, [username, user?.id]);
+
+  const sortedCounters = useMemo(() => {
+    const arr = [...counters];
+    arr.sort((a, b) =>
+      sortDir === "oldest"
+        ? new Date(a.started_at).getTime() - new Date(b.started_at).getTime()
+        : new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+    );
+    return arr;
+  }, [counters, sortDir]);
+
+  async function toggleFollow() {
+    if (!user) return toast.error("Sign in to follow");
+    if (!profile) return;
+    if (user.id === profile.id) return toast.error("You can't follow yourself");
+    setFollowBusy(true);
+    if (isFollowing) {
+      const { error } = await supabase
+        .from("follows")
+        .delete()
+        .eq("follower_id", user.id)
+        .eq("followee_id", profile.id);
+      setFollowBusy(false);
+      if (error) return toastError(error, "Couldn't unfollow");
+      setIsFollowing(false);
+      setFollowerCount((n) => Math.max(0, n - 1));
+      toast.success(`Unfollowed @${profile.username}`);
+    } else {
+      const { error } = await supabase
+        .from("follows")
+        .insert({ follower_id: user.id, followee_id: profile.id });
+      setFollowBusy(false);
+      if (error) return toastError(error, "Couldn't follow");
+      setIsFollowing(true);
+      setFollowerCount((n) => n + 1);
+      toast.success(`Following @${profile.username}`);
+    }
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Profile link copied");
+    } catch {
+      toast.error("Couldn't copy link");
+    }
+  }
+
 
   const totals = counters.reduce(
     (acc, c) => {
@@ -117,12 +193,12 @@ export default function PublicProfile() {
           </div>
         ) : (
           <>
-            <header className="flex items-center gap-5 mb-8">
+            <header className="flex flex-col sm:flex-row sm:items-center gap-5 mb-8">
               <Avatar className="h-20 w-20">
                 <AvatarImage src={profile.avatar_url ?? undefined} alt={profile.username} />
                 <AvatarFallback className="text-xl font-display">{initials}</AvatarFallback>
               </Avatar>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h1 className="font-display text-4xl font-bold leading-tight truncate">
                   {profile.display_name ?? profile.username}
                 </h1>
@@ -130,6 +206,26 @@ export default function PublicProfile() {
                   @{profile.username} · joined{" "}
                   {formatDistanceToNow(new Date(profile.created_at), { addSuffix: true })}
                 </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  <span className="font-mono-num font-semibold text-foreground">{followerCount}</span>{" "}
+                  {followerCount === 1 ? "follower" : "followers"}
+                </p>
+              </div>
+              <div className="flex gap-2 sm:flex-col sm:items-end">
+                {user && user.id !== profile.id && (
+                  <Button
+                    onClick={toggleFollow}
+                    disabled={followBusy}
+                    variant={isFollowing ? "outline" : "default"}
+                    className="gap-1.5"
+                  >
+                    {isFollowing ? <UserCheck className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                    {isFollowing ? "Following" : "Follow"}
+                  </Button>
+                )}
+                <Button onClick={copyLink} variant="ghost" size="sm" className="gap-1.5">
+                  <Link2 className="h-4 w-4" /> Copy profile link
+                </Button>
               </div>
             </header>
 
@@ -161,9 +257,20 @@ export default function PublicProfile() {
               </Card>
             ) : (
               <>
-                <h2 className="font-display text-xl font-bold mb-4">Counters</h2>
+                <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                  <h2 className="font-display text-xl font-bold">Counters</h2>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSortDir((d) => (d === "oldest" ? "newest" : "oldest"))}
+                    className="gap-1.5"
+                  >
+                    <ArrowDownUp className="h-3.5 w-3.5" />
+                    {sortDir === "oldest" ? "Oldest first" : "Newest first"}
+                  </Button>
+                </div>
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {counters.map((c) => {
+                  {sortedCounters.map((c) => {
                     const r = reactionsByCounter[c.id];
                     return (
                       <CounterCard

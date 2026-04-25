@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { toastError } from "@/lib/errors";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 
 type Counter = {
   id: string;
@@ -24,11 +24,24 @@ type Counter = {
   is_public: boolean;
 };
 
+const ONBOARDING_SUGGESTIONS = [
+  { label: "🏋️ Skipped the gym", category: "fitness" },
+  { label: "🍔 Ate junk food", category: "diet" },
+  { label: "📱 Doomscrolled", category: "productivity" },
+  { label: "💤 Stayed up too late", category: "sleep" },
+  { label: "🚬 Smoked", category: "vices" },
+];
+
 export default function Dashboard() {
   const { user } = useAuth();
+  const [params, setParams] = useSearchParams();
   const [counters, setCounters] = useState<Counter[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [onboardOpen, setOnboardOpen] = useState(false);
+  const [onboardTitle, setOnboardTitle] = useState("");
+  const [onboardCategory, setOnboardCategory] = useState("general");
+  const [onboardBusy, setOnboardBusy] = useState(false);
   const [profile, setProfile] = useState<{ username: string } | null>(null);
 
   // form
@@ -46,9 +59,37 @@ export default function Dashboard() {
     setCounters((cs ?? []) as Counter[]);
     setProfile(pr);
     setLoading(false);
+    // Show onboarding if explicitly asked, or on first dashboard visit with no counters.
+    const flagged = params.get("onboarding") === "1";
+    if ((flagged || (cs ?? []).length === 0) && !open) {
+      setOnboardOpen(true);
+    }
+    if (flagged) {
+      params.delete("onboarding");
+      setParams(params, { replace: true });
+    }
   }
 
   useEffect(() => { load(); }, [user]);
+
+  async function createOnboarding(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !onboardTitle.trim()) return;
+    setOnboardBusy(true);
+    const { error } = await supabase.from("counters").insert({
+      owner_id: user.id,
+      title: onboardTitle.trim(),
+      category: onboardCategory || "general",
+      is_public: false,
+    });
+    setOnboardBusy(false);
+    if (error) return toastError(error, "Couldn't create counter");
+    toast.success("First counter started — good luck!");
+    setOnboardOpen(false);
+    setOnboardTitle("");
+    setOnboardCategory("general");
+    load();
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -141,6 +182,68 @@ export default function Dashboard() {
           </p>
         )}
       </main>
+
+      <Dialog open={onboardOpen} onOpenChange={setOnboardOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-accent" /> What are you tracking?
+            </DialogTitle>
+            <DialogDescription>
+              Pick something you want to stop doing. We'll start counting from today.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            {ONBOARDING_SUGGESTIONS.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => {
+                  setOnboardTitle(s.label);
+                  setOnboardCategory(s.category);
+                }}
+                className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <form onSubmit={createOnboarding} className="space-y-4 mt-2">
+            <div>
+              <Label htmlFor="ob-title">Counter title</Label>
+              <Input
+                id="ob-title"
+                value={onboardTitle}
+                onChange={(e) => setOnboardTitle(e.target.value)}
+                placeholder="Days since I…"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="ob-cat">Category</Label>
+              <Input
+                id="ob-cat"
+                value={onboardCategory}
+                onChange={(e) => setOnboardCategory(e.target.value)}
+                placeholder="fitness, diet, productivity…"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                className="flex-1"
+                onClick={() => setOnboardOpen(false)}
+              >
+                Skip for now
+              </Button>
+              <Button type="submit" className="flex-1" disabled={onboardBusy || !onboardTitle.trim()}>
+                {onboardBusy ? "Creating…" : "Start counter"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
