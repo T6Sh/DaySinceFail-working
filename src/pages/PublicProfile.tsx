@@ -36,6 +36,30 @@ export default function PublicProfile() {
   const [counters, setCounters] = useState<Counter[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [sortDir, setSortDir] = useState<"oldest" | "newest">("oldest");
+  const { user } = useAuth();
+
+  async function loadFollow(profileId: string) {
+    const { count } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("followee_id", profileId);
+    setFollowerCount(count ?? 0);
+    if (user) {
+      const { data: mine } = await supabase
+        .from("follows")
+        .select("id")
+        .eq("follower_id", user.id)
+        .eq("followee_id", profileId)
+        .maybeSingle();
+      setIsFollowing(!!mine);
+    } else {
+      setIsFollowing(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -52,8 +76,7 @@ export default function PublicProfile() {
           .from("counters")
           .select("*")
           .eq("owner_id", p.id)
-          .eq("is_public", true)
-          .order("started_at", { ascending: true });
+          .eq("is_public", true);
         const list = (cs ?? []) as Counter[];
         setCounters(list);
         if (list.length) {
@@ -68,10 +91,59 @@ export default function PublicProfile() {
         } else {
           setReactions([]);
         }
+        await loadFollow(p.id);
       }
       setLoading(false);
     })();
-  }, [username]);
+  }, [username, user?.id]);
+
+  const sortedCounters = useMemo(() => {
+    const arr = [...counters];
+    arr.sort((a, b) =>
+      sortDir === "oldest"
+        ? new Date(a.started_at).getTime() - new Date(b.started_at).getTime()
+        : new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+    );
+    return arr;
+  }, [counters, sortDir]);
+
+  async function toggleFollow() {
+    if (!user) return toast.error("Sign in to follow");
+    if (!profile) return;
+    if (user.id === profile.id) return toast.error("You can't follow yourself");
+    setFollowBusy(true);
+    if (isFollowing) {
+      const { error } = await supabase
+        .from("follows")
+        .delete()
+        .eq("follower_id", user.id)
+        .eq("followee_id", profile.id);
+      setFollowBusy(false);
+      if (error) return toastError(error, "Couldn't unfollow");
+      setIsFollowing(false);
+      setFollowerCount((n) => Math.max(0, n - 1));
+      toast.success(`Unfollowed @${profile.username}`);
+    } else {
+      const { error } = await supabase
+        .from("follows")
+        .insert({ follower_id: user.id, followee_id: profile.id });
+      setFollowBusy(false);
+      if (error) return toastError(error, "Couldn't follow");
+      setIsFollowing(true);
+      setFollowerCount((n) => n + 1);
+      toast.success(`Following @${profile.username}`);
+    }
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Profile link copied");
+    } catch {
+      toast.error("Couldn't copy link");
+    }
+  }
+
 
   const totals = counters.reduce(
     (acc, c) => {
