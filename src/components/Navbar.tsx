@@ -25,6 +25,9 @@ export function Navbar() {
               <Button variant="ghost" size="sm" onClick={() => nav("/dashboard")}>
                 Dashboard
               </Button>
+              <Button variant="ghost" size="sm" onClick={() => nav("/account")}>
+                Account
+              </Button>
               <Button variant="outline" size="sm" onClick={async () => { await signOut(); nav("/"); }}>
                 Sign out
               </Button>

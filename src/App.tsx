@@ -9,9 +9,11 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
+import Account from "./pages/Account";
 import CounterDetail from "./pages/CounterDetail";
 import PublicProfile from "./pages/PublicProfile";
 import Leaderboard from "./pages/Leaderboard";
+import Followers, { Following } from "./pages/FollowList";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,8 +31,11 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/u/:username" element={<PublicProfile />} />
+            <Route path="/u/:username/followers" element={<Followers />} />
+            <Route path="/u/:username/following" element={<Following />} />
             <Route path="/counter/:id" element={<CounterDetail />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { toastError } from "@/lib/errors";
+import { isOnboardingCompleted, markOnboardingCompleted } from "@/lib/onboarding";
 import { Plus, Sparkles } from "lucide-react";
 
 type Counter = {
@@ -59,9 +60,10 @@ export default function Dashboard() {
     setCounters((cs ?? []) as Counter[]);
     setProfile(pr);
     setLoading(false);
-    // Show onboarding if explicitly asked, or on first dashboard visit with no counters.
+    // Show onboarding only if not yet completed (per-user localStorage flag).
     const flagged = params.get("onboarding") === "1";
-    if ((flagged || (cs ?? []).length === 0) && !open) {
+    const completed = isOnboardingCompleted(user.id);
+    if (!completed && (flagged || (cs ?? []).length === 0) && !open) {
       setOnboardOpen(true);
     }
     if (flagged) {
@@ -71,6 +73,11 @@ export default function Dashboard() {
   }
 
   useEffect(() => { load(); }, [user]);
+
+  function dismissOnboarding() {
+    markOnboardingCompleted(user?.id);
+    setOnboardOpen(false);
+  }
 
   async function createOnboarding(e: React.FormEvent) {
     e.preventDefault();
@@ -84,6 +91,7 @@ export default function Dashboard() {
     });
     setOnboardBusy(false);
     if (error) return toastError(error, "Couldn't create counter");
+    markOnboardingCompleted(user.id);
     toast.success("First counter started — good luck!");
     setOnboardOpen(false);
     setOnboardTitle("");
@@ -183,7 +191,7 @@ export default function Dashboard() {
         )}
       </main>
 
-      <Dialog open={onboardOpen} onOpenChange={setOnboardOpen}>
+      <Dialog open={onboardOpen} onOpenChange={(o) => { if (!o) dismissOnboarding(); else setOnboardOpen(true); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -233,7 +241,7 @@ export default function Dashboard() {
                 type="button"
                 variant="ghost"
                 className="flex-1"
-                onClick={() => setOnboardOpen(false)}
+                onClick={dismissOnboarding}
               >
                 Skip for now
               </Button>

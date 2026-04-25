@@ -11,7 +11,31 @@ import { toast } from "sonner";
 import { toastError } from "@/lib/errors";
 import { daysSince } from "@/lib/streak";
 import { formatDistanceToNow } from "date-fns";
-import { Flame, Skull, Trophy, Activity, UserPlus, UserCheck, Link2, ArrowDownUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Flame,
+  Skull,
+  Trophy,
+  Activity,
+  UserPlus,
+  UserCheck,
+  Link2,
+  ArrowDownUp,
+  Ban,
+  ShieldOff,
+  Heart,
+} from "lucide-react";
 
 type Profile = {
   id: string;
@@ -42,57 +66,96 @@ export default function PublicProfile() {
   const [sortDir, setSortDir] = useState<"oldest" | "newest">("oldest");
   const { user } = useAuth();
 
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followsMe, setFollowsMe] = useState(false);
+  const [iBlocked, setIBlocked] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
+  const [profileMissing, setProfileMissing] = useState(false);
+
   async function loadFollow(profileId: string) {
-    const { count } = await supabase
-      .from("follows")
-      .select("*", { count: "exact", head: true })
-      .eq("followee_id", profileId);
-    setFollowerCount(count ?? 0);
-    if (user) {
-      const { data: mine } = await supabase
+    const [{ count: followers }, { count: followingC }] = await Promise.all([
+      supabase
         .from("follows")
-        .select("id")
-        .eq("follower_id", user.id)
-        .eq("followee_id", profileId)
-        .maybeSingle();
+        .select("*", { count: "exact", head: true })
+        .eq("followee_id", profileId),
+      supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("follower_id", profileId),
+    ]);
+    setFollowerCount(followers ?? 0);
+    setFollowingCount(followingC ?? 0);
+    if (user) {
+      const [{ data: mine }, { data: theyMe }] = await Promise.all([
+        supabase
+          .from("follows")
+          .select("id")
+          .eq("follower_id", user.id)
+          .eq("followee_id", profileId)
+          .maybeSingle(),
+        supabase
+          .from("follows")
+          .select("id")
+          .eq("follower_id", profileId)
+          .eq("followee_id", user.id)
+          .maybeSingle(),
+      ]);
       setIsFollowing(!!mine);
+      setFollowsMe(!!theyMe);
     } else {
       setIsFollowing(false);
+      setFollowsMe(false);
     }
+  }
+
+  async function loadBlockStatus(profileId: string) {
+    if (!user) return setIBlocked(false);
+    const { data } = await supabase
+      .from("blocks")
+      .select("id")
+      .eq("blocker_id", user.id)
+      .eq("blocked_id", profileId)
+      .maybeSingle();
+    setIBlocked(!!data);
   }
 
   useEffect(() => {
     (async () => {
       if (!username) return;
       setLoading(true);
+      setProfileMissing(false);
       const { data: p } = await supabase
         .from("profiles")
         .select("*")
         .eq("username", username)
         .maybeSingle();
-      setProfile(p as Profile | null);
-      if (p) {
-        const { data: cs } = await supabase
-          .from("counters")
-          .select("*")
-          .eq("owner_id", p.id)
-          .eq("is_public", true);
-        const list = (cs ?? []) as Counter[];
-        setCounters(list);
-        if (list.length) {
-          const { data: rx } = await supabase
-            .from("counter_reactions")
-            .select("counter_id, kind")
-            .in(
-              "counter_id",
-              list.map((c) => c.id)
-            );
-          setReactions((rx ?? []) as Reaction[]);
-        } else {
-          setReactions([]);
-        }
-        await loadFollow(p.id);
+      if (!p) {
+        setProfile(null);
+        setProfileMissing(true);
+        setLoading(false);
+        return;
       }
+      setProfile(p as Profile);
+      const { data: cs } = await supabase
+        .from("counters")
+        .select("*")
+        .eq("owner_id", p.id)
+        .eq("is_public", true);
+      const list = (cs ?? []) as Counter[];
+      setCounters(list);
+      if (list.length) {
+        const { data: rx } = await supabase
+          .from("counter_reactions")
+          .select("counter_id, kind")
+          .in(
+            "counter_id",
+            list.map((c) => c.id)
+          );
+        setReactions((rx ?? []) as Reaction[]);
+      } else {
+        setReactions([]);
+      }
+      await Promise.all([loadFollow(p.id), loadBlockStatus(p.id)]);
       setLoading(false);
     })();
   }, [username, user?.id]);
@@ -111,6 +174,7 @@ export default function PublicProfile() {
     if (!user) return toast.error("Sign in to follow");
     if (!profile) return;
     if (user.id === profile.id) return toast.error("You can't follow yourself");
+    if (iBlocked) return toast.error("Unblock to follow this user");
     setFollowBusy(true);
     if (isFollowing) {
       const { error } = await supabase
@@ -132,6 +196,45 @@ export default function PublicProfile() {
       setIsFollowing(true);
       setFollowerCount((n) => n + 1);
       toast.success(`Following @${profile.username}`);
+    }
+  }
+
+  async function blockUser() {
+    if (!user || !profile) return;
+    if (user.id === profile.id) return toast.error("You can't block yourself");
+    setBlockBusy(true);
+    const { error } = await supabase
+      .from("blocks")
+      .insert({ blocker_id: user.id, blocked_id: profile.id });
+    setBlockBusy(false);
+    if (error) return toastError(error, "Couldn't block");
+    setIBlocked(true);
+    setIsFollowing(false);
+    setFollowsMe(false);
+    toast.success(`Blocked @${profile.username}`);
+  }
+
+  async function unblockUser() {
+    if (!user || !profile) return;
+    setBlockBusy(true);
+    const { error } = await supabase
+      .from("blocks")
+      .delete()
+      .eq("blocker_id", user.id)
+      .eq("blocked_id", profile.id);
+    setBlockBusy(false);
+    if (error) return toastError(error, "Couldn't unblock");
+    setIBlocked(false);
+    toast.success(`Unblocked @${profile.username}`);
+    // Refresh counters/follows now that visibility may change.
+    if (profile) {
+      const { data: cs } = await supabase
+        .from("counters")
+        .select("*")
+        .eq("owner_id", profile.id)
+        .eq("is_public", true);
+      setCounters((cs ?? []) as Counter[]);
+      await loadFollow(profile.id);
     }
   }
 
@@ -183,9 +286,13 @@ export default function PublicProfile() {
           <div className="text-muted-foreground">Loading…</div>
         ) : !profile ? (
           <div className="text-center py-20">
-            <h1 className="font-display text-2xl font-bold mb-2">User not found</h1>
+            <h1 className="font-display text-2xl font-bold mb-2">
+              {profileMissing ? "Can't show this profile" : "User not found"}
+            </h1>
             <p className="text-muted-foreground mb-4">
-              No one's claimed <span className="font-mono">@{username}</span> yet.
+              {profileMissing
+                ? "It may not exist, or you've blocked them. Unblock from any of your blocked users to view again."
+                : (<>No one's claimed <span className="font-mono">@{username}</span> yet.</>)}
             </p>
             <Link to="/" className="text-accent hover:underline">
               Go home
@@ -199,20 +306,45 @@ export default function PublicProfile() {
                 <AvatarFallback className="text-xl font-display">{initials}</AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <h1 className="font-display text-4xl font-bold leading-tight truncate">
-                  {profile.display_name ?? profile.username}
-                </h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="font-display text-4xl font-bold leading-tight truncate">
+                    {profile.display_name ?? profile.username}
+                  </h1>
+                  {isFollowing && followsMe && (
+                    <Badge className="gap-1 bg-accent/15 text-accent border-accent/30 hover:bg-accent/20">
+                      <Heart className="h-3 w-3" /> Mutual
+                    </Badge>
+                  )}
+                  {iBlocked && (
+                    <Badge variant="outline" className="gap-1">
+                      <Ban className="h-3 w-3" /> Blocked
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-muted-foreground">
                   @{profile.username} · joined{" "}
                   {formatDistanceToNow(new Date(profile.created_at), { addSuffix: true })}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  <span className="font-mono-num font-semibold text-foreground">{followerCount}</span>{" "}
-                  {followerCount === 1 ? "follower" : "followers"}
+                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+                  <Link
+                    to={`/u/${profile.username}/followers`}
+                    className="hover:text-foreground"
+                  >
+                    <span className="font-mono-num font-semibold text-foreground">{followerCount}</span>{" "}
+                    {followerCount === 1 ? "follower" : "followers"}
+                  </Link>
+                  <span className="text-border">·</span>
+                  <Link
+                    to={`/u/${profile.username}/following`}
+                    className="hover:text-foreground"
+                  >
+                    <span className="font-mono-num font-semibold text-foreground">{followingCount}</span>{" "}
+                    following
+                  </Link>
                 </p>
               </div>
               <div className="flex gap-2 sm:flex-col sm:items-end">
-                {user && user.id !== profile.id && (
+                {user && user.id !== profile.id && !iBlocked && (
                   <Button
                     onClick={toggleFollow}
                     disabled={followBusy}
@@ -226,6 +358,41 @@ export default function PublicProfile() {
                 <Button onClick={copyLink} variant="ghost" size="sm" className="gap-1.5">
                   <Link2 className="h-4 w-4" /> Copy profile link
                 </Button>
+                {user && user.id !== profile.id && (
+                  iBlocked ? (
+                    <Button
+                      onClick={unblockUser}
+                      disabled={blockBusy}
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5"
+                    >
+                      <ShieldOff className="h-4 w-4" /> Unblock
+                    </Button>
+                  ) : (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive">
+                          <Ban className="h-4 w-4" /> Block
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Block @{profile.username}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            You won't see each other's profiles, counters, or reactions. Any follows between you will be removed.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={blockUser} disabled={blockBusy}>
+                            Block
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )
+                )}
               </div>
             </header>
 
