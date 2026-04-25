@@ -11,7 +11,31 @@ import { toast } from "sonner";
 import { toastError } from "@/lib/errors";
 import { daysSince } from "@/lib/streak";
 import { formatDistanceToNow } from "date-fns";
-import { Flame, Skull, Trophy, Activity, UserPlus, UserCheck, Link2, ArrowDownUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Flame,
+  Skull,
+  Trophy,
+  Activity,
+  UserPlus,
+  UserCheck,
+  Link2,
+  ArrowDownUp,
+  Ban,
+  ShieldOff,
+  Heart,
+} from "lucide-react";
 
 type Profile = {
   id: string;
@@ -42,23 +66,57 @@ export default function PublicProfile() {
   const [sortDir, setSortDir] = useState<"oldest" | "newest">("oldest");
   const { user } = useAuth();
 
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followsMe, setFollowsMe] = useState(false);
+  const [iBlocked, setIBlocked] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
+  const [profileMissing, setProfileMissing] = useState(false);
+
   async function loadFollow(profileId: string) {
-    const { count } = await supabase
-      .from("follows")
-      .select("*", { count: "exact", head: true })
-      .eq("followee_id", profileId);
-    setFollowerCount(count ?? 0);
-    if (user) {
-      const { data: mine } = await supabase
+    const [{ count: followers }, { count: followingC }] = await Promise.all([
+      supabase
         .from("follows")
-        .select("id")
-        .eq("follower_id", user.id)
-        .eq("followee_id", profileId)
-        .maybeSingle();
+        .select("*", { count: "exact", head: true })
+        .eq("followee_id", profileId),
+      supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("follower_id", profileId),
+    ]);
+    setFollowerCount(followers ?? 0);
+    setFollowingCount(followingC ?? 0);
+    if (user) {
+      const [{ data: mine }, { data: theyMe }] = await Promise.all([
+        supabase
+          .from("follows")
+          .select("id")
+          .eq("follower_id", user.id)
+          .eq("followee_id", profileId)
+          .maybeSingle(),
+        supabase
+          .from("follows")
+          .select("id")
+          .eq("follower_id", profileId)
+          .eq("followee_id", user.id)
+          .maybeSingle(),
+      ]);
       setIsFollowing(!!mine);
+      setFollowsMe(!!theyMe);
     } else {
       setIsFollowing(false);
+      setFollowsMe(false);
     }
+  }
+
+  async function loadBlockStatus(profileId: string) {
+    if (!user) return setIBlocked(false);
+    const { data } = await supabase
+      .from("blocks")
+      .select("id")
+      .eq("blocker_id", user.id)
+      .eq("blocked_id", profileId)
+      .maybeSingle();
+    setIBlocked(!!data);
   }
 
   useEffect(() => {
