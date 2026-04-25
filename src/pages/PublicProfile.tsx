@@ -193,12 +193,12 @@ export default function PublicProfile() {
           </div>
         ) : (
           <>
-            <header className="flex items-center gap-5 mb-8">
+            <header className="flex flex-col sm:flex-row sm:items-center gap-5 mb-8">
               <Avatar className="h-20 w-20">
                 <AvatarImage src={profile.avatar_url ?? undefined} alt={profile.username} />
                 <AvatarFallback className="text-xl font-display">{initials}</AvatarFallback>
               </Avatar>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h1 className="font-display text-4xl font-bold leading-tight truncate">
                   {profile.display_name ?? profile.username}
                 </h1>
@@ -206,6 +206,26 @@ export default function PublicProfile() {
                   @{profile.username} · joined{" "}
                   {formatDistanceToNow(new Date(profile.created_at), { addSuffix: true })}
                 </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  <span className="font-mono-num font-semibold text-foreground">{followerCount}</span>{" "}
+                  {followerCount === 1 ? "follower" : "followers"}
+                </p>
+              </div>
+              <div className="flex gap-2 sm:flex-col sm:items-end">
+                {user && user.id !== profile.id && (
+                  <Button
+                    onClick={toggleFollow}
+                    disabled={followBusy}
+                    variant={isFollowing ? "outline" : "default"}
+                    className="gap-1.5"
+                  >
+                    {isFollowing ? <UserCheck className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                    {isFollowing ? "Following" : "Follow"}
+                  </Button>
+                )}
+                <Button onClick={copyLink} variant="ghost" size="sm" className="gap-1.5">
+                  <Link2 className="h-4 w-4" /> Copy profile link
+                </Button>
               </div>
             </header>
 
@@ -237,9 +257,20 @@ export default function PublicProfile() {
               </Card>
             ) : (
               <>
-                <h2 className="font-display text-xl font-bold mb-4">Counters</h2>
+                <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                  <h2 className="font-display text-xl font-bold">Counters</h2>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSortDir((d) => (d === "oldest" ? "newest" : "oldest"))}
+                    className="gap-1.5"
+                  >
+                    <ArrowDownUp className="h-3.5 w-3.5" />
+                    {sortDir === "oldest" ? "Oldest first" : "Newest first"}
+                  </Button>
+                </div>
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {counters.map((c) => {
+                  {sortedCounters.map((c) => {
                     const r = reactionsByCounter[c.id];
                     return (
                       <CounterCard
