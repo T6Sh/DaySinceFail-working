@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
+import { isAllowedSignupEmail, ALLOWED_EMAIL_HINT } from "@/lib/email";
+import { CheckCircle2, Loader2 } from "lucide-react";
 
 export default function Auth() {
   const [params] = useSearchParams();
@@ -17,11 +19,38 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
+  const [verifyState, setVerifyState] = useState<"idle" | "checking" | "ready">("idle");
   const { user } = useAuth();
   const nav = useNavigate();
 
   useEffect(() => {
-    if (user) nav("/dashboard", { replace: true });
+    if (!user) return;
+    // After signup the trigger creates a profiles row. Poll briefly so the
+    // user gets a clear "Profile ready" confirmation before we redirect.
+    let cancelled = false;
+    setVerifyState("checking");
+    (async () => {
+      for (let i = 0; i < 10 && !cancelled; i++) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (data) {
+          setVerifyState("ready");
+          // brief pause so the user sees the success state
+          setTimeout(() => !cancelled && nav("/dashboard?onboarding=1", { replace: true }), 600);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      // Trigger should always succeed; if not, still continue.
+      if (!cancelled) nav("/dashboard?onboarding=1", { replace: true });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user, nav]);
 
   async function submit(e: React.FormEvent) {
@@ -29,11 +58,14 @@ export default function Auth() {
     setBusy(true);
     try {
       if (mode === "signup") {
+        if (!isAllowedSignupEmail(email)) {
+          throw new Error(ALLOWED_EMAIL_HINT);
+        }
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
+            emailRedirectTo: `${window.location.origin}/dashboard?onboarding=1`,
             data: { username },
           },
         });
