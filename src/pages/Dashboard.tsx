@@ -182,6 +182,68 @@ export default function Dashboard() {
           </p>
         )}
       </main>
+
+      <Dialog open={onboardOpen} onOpenChange={setOnboardOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-accent" /> What are you tracking?
+            </DialogTitle>
+            <DialogDescription>
+              Pick something you want to stop doing. We'll start counting from today.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            {ONBOARDING_SUGGESTIONS.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => {
+                  setOnboardTitle(s.label);
+                  setOnboardCategory(s.category);
+                }}
+                className="rounded-full border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <form onSubmit={createOnboarding} className="space-y-4 mt-2">
+            <div>
+              <Label htmlFor="ob-title">Counter title</Label>
+              <Input
+                id="ob-title"
+                value={onboardTitle}
+                onChange={(e) => setOnboardTitle(e.target.value)}
+                placeholder="Days since I…"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="ob-cat">Category</Label>
+              <Input
+                id="ob-cat"
+                value={onboardCategory}
+                onChange={(e) => setOnboardCategory(e.target.value)}
+                placeholder="fitness, diet, productivity…"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                className="flex-1"
+                onClick={() => setOnboardOpen(false)}
+              >
+                Skip for now
+              </Button>
+              <Button type="submit" className="flex-1" disabled={onboardBusy || !onboardTitle.trim()}>
+                {onboardBusy ? "Creating…" : "Start counter"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
