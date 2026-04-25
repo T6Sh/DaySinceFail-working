@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errors";
 import { Plus } from "lucide-react";
 
 type Counter = {
@@ -59,7 +60,7 @@ export default function Dashboard() {
       description: description || null,
       is_public: isPublic,
     });
-    if (error) return toast.error(error.message);
+    if (error) return toastError(error, "Couldn't create counter");
     toast.success("Counter created");
     setOpen(false);
     setTitle(""); setCategory("general"); setDescription(""); setIsPublic(false);
