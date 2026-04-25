@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { CounterCard } from "@/components/CounterCard";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { toastError } from "@/lib/errors";
 import { daysSince } from "@/lib/streak";
 import { formatDistanceToNow } from "date-fns";
-import { Flame, Skull, Trophy, Activity } from "lucide-react";
+import { Flame, Skull, Trophy, Activity, UserPlus, UserCheck, Link2, ArrowDownUp } from "lucide-react";
 
 type Profile = {
   id: string;
