@@ -286,9 +286,13 @@ export default function PublicProfile() {
           <div className="text-muted-foreground">Loading…</div>
         ) : !profile ? (
           <div className="text-center py-20">
-            <h1 className="font-display text-2xl font-bold mb-2">User not found</h1>
+            <h1 className="font-display text-2xl font-bold mb-2">
+              {profileMissing ? "Can't show this profile" : "User not found"}
+            </h1>
             <p className="text-muted-foreground mb-4">
-              No one's claimed <span className="font-mono">@{username}</span> yet.
+              {profileMissing
+                ? "It may not exist, or you've blocked them. Unblock from any of your blocked users to view again."
+                : (<>No one's claimed <span className="font-mono">@{username}</span> yet.</>)}
             </p>
             <Link to="/" className="text-accent hover:underline">
               Go home
@@ -302,20 +306,45 @@ export default function PublicProfile() {
                 <AvatarFallback className="text-xl font-display">{initials}</AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <h1 className="font-display text-4xl font-bold leading-tight truncate">
-                  {profile.display_name ?? profile.username}
-                </h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="font-display text-4xl font-bold leading-tight truncate">
+                    {profile.display_name ?? profile.username}
+                  </h1>
+                  {isFollowing && followsMe && (
+                    <Badge className="gap-1 bg-accent/15 text-accent border-accent/30 hover:bg-accent/20">
+                      <Heart className="h-3 w-3" /> Mutual
+                    </Badge>
+                  )}
+                  {iBlocked && (
+                    <Badge variant="outline" className="gap-1">
+                      <Ban className="h-3 w-3" /> Blocked
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-muted-foreground">
                   @{profile.username} · joined{" "}
                   {formatDistanceToNow(new Date(profile.created_at), { addSuffix: true })}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  <span className="font-mono-num font-semibold text-foreground">{followerCount}</span>{" "}
-                  {followerCount === 1 ? "follower" : "followers"}
+                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+                  <Link
+                    to={`/u/${profile.username}/followers`}
+                    className="hover:text-foreground"
+                  >
+                    <span className="font-mono-num font-semibold text-foreground">{followerCount}</span>{" "}
+                    {followerCount === 1 ? "follower" : "followers"}
+                  </Link>
+                  <span className="text-border">·</span>
+                  <Link
+                    to={`/u/${profile.username}/following`}
+                    className="hover:text-foreground"
+                  >
+                    <span className="font-mono-num font-semibold text-foreground">{followingCount}</span>{" "}
+                    following
+                  </Link>
                 </p>
               </div>
               <div className="flex gap-2 sm:flex-col sm:items-end">
-                {user && user.id !== profile.id && (
+                {user && user.id !== profile.id && !iBlocked && (
                   <Button
                     onClick={toggleFollow}
                     disabled={followBusy}
@@ -329,6 +358,41 @@ export default function PublicProfile() {
                 <Button onClick={copyLink} variant="ghost" size="sm" className="gap-1.5">
                   <Link2 className="h-4 w-4" /> Copy profile link
                 </Button>
+                {user && user.id !== profile.id && (
+                  iBlocked ? (
+                    <Button
+                      onClick={unblockUser}
+                      disabled={blockBusy}
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5"
+                    >
+                      <ShieldOff className="h-4 w-4" /> Unblock
+                    </Button>
+                  ) : (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive">
+                          <Ban className="h-4 w-4" /> Block
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Block @{profile.username}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            You won't see each other's profiles, counters, or reactions. Any follows between you will be removed.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={blockUser} disabled={blockBusy}>
+                            Block
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )
+                )}
               </div>
             </header>
 
