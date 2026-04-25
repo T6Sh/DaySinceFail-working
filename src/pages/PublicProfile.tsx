@@ -123,34 +123,39 @@ export default function PublicProfile() {
     (async () => {
       if (!username) return;
       setLoading(true);
+      setProfileMissing(false);
       const { data: p } = await supabase
         .from("profiles")
         .select("*")
         .eq("username", username)
         .maybeSingle();
-      setProfile(p as Profile | null);
-      if (p) {
-        const { data: cs } = await supabase
-          .from("counters")
-          .select("*")
-          .eq("owner_id", p.id)
-          .eq("is_public", true);
-        const list = (cs ?? []) as Counter[];
-        setCounters(list);
-        if (list.length) {
-          const { data: rx } = await supabase
-            .from("counter_reactions")
-            .select("counter_id, kind")
-            .in(
-              "counter_id",
-              list.map((c) => c.id)
-            );
-          setReactions((rx ?? []) as Reaction[]);
-        } else {
-          setReactions([]);
-        }
-        await loadFollow(p.id);
+      if (!p) {
+        setProfile(null);
+        setProfileMissing(true);
+        setLoading(false);
+        return;
       }
+      setProfile(p as Profile);
+      const { data: cs } = await supabase
+        .from("counters")
+        .select("*")
+        .eq("owner_id", p.id)
+        .eq("is_public", true);
+      const list = (cs ?? []) as Counter[];
+      setCounters(list);
+      if (list.length) {
+        const { data: rx } = await supabase
+          .from("counter_reactions")
+          .select("counter_id, kind")
+          .in(
+            "counter_id",
+            list.map((c) => c.id)
+          );
+        setReactions((rx ?? []) as Reaction[]);
+      } else {
+        setReactions([]);
+      }
+      await Promise.all([loadFollow(p.id), loadBlockStatus(p.id)]);
       setLoading(false);
     })();
   }, [username, user?.id]);
@@ -169,6 +174,7 @@ export default function PublicProfile() {
     if (!user) return toast.error("Sign in to follow");
     if (!profile) return;
     if (user.id === profile.id) return toast.error("You can't follow yourself");
+    if (iBlocked) return toast.error("Unblock to follow this user");
     setFollowBusy(true);
     if (isFollowing) {
       const { error } = await supabase
@@ -190,6 +196,45 @@ export default function PublicProfile() {
       setIsFollowing(true);
       setFollowerCount((n) => n + 1);
       toast.success(`Following @${profile.username}`);
+    }
+  }
+
+  async function blockUser() {
+    if (!user || !profile) return;
+    if (user.id === profile.id) return toast.error("You can't block yourself");
+    setBlockBusy(true);
+    const { error } = await supabase
+      .from("blocks")
+      .insert({ blocker_id: user.id, blocked_id: profile.id });
+    setBlockBusy(false);
+    if (error) return toastError(error, "Couldn't block");
+    setIBlocked(true);
+    setIsFollowing(false);
+    setFollowsMe(false);
+    toast.success(`Blocked @${profile.username}`);
+  }
+
+  async function unblockUser() {
+    if (!user || !profile) return;
+    setBlockBusy(true);
+    const { error } = await supabase
+      .from("blocks")
+      .delete()
+      .eq("blocker_id", user.id)
+      .eq("blocked_id", profile.id);
+    setBlockBusy(false);
+    if (error) return toastError(error, "Couldn't unblock");
+    setIBlocked(false);
+    toast.success(`Unblocked @${profile.username}`);
+    // Refresh counters/follows now that visibility may change.
+    if (profile) {
+      const { data: cs } = await supabase
+        .from("counters")
+        .select("*")
+        .eq("owner_id", profile.id)
+        .eq("is_public", true);
+      setCounters((cs ?? []) as Counter[]);
+      await loadFollow(profile.id);
     }
   }
 
