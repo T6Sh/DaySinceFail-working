@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { toastError } from "@/lib/errors";
+import { isOnboardingCompleted, markOnboardingCompleted } from "@/lib/onboarding";
 import { Plus, Sparkles } from "lucide-react";
 
 type Counter = {
