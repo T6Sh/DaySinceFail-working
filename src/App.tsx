@@ -30,6 +30,8 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/u/:username" element={<PublicProfile />} />
+            <Route path="/u/:username/followers" element={<Followers />} />
+            <Route path="/u/:username/following" element={<Following />} />
             <Route path="/counter/:id" element={<CounterDetail />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
