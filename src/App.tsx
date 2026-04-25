@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import CounterDetail from "./pages/CounterDetail";
 import PublicProfile from "./pages/PublicProfile";
 import Leaderboard from "./pages/Leaderboard";
+import Followers, { Following } from "./pages/FollowList";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
