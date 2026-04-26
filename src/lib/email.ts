@@ -27,3 +27,4 @@ export function isAllowedSignupEmail(email: string): boolean {
 }
 
 export const ALLOWED_EMAIL_HINT = "Only Gmail and Yahoo addresses are allowed.";
+export const INVALID_EMAIL_MESSAGE = "Enter a valid email";
