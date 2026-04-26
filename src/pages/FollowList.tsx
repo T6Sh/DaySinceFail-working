@@ -5,7 +5,6 @@ import { Navbar } from "@/components/Navbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
 
 type Mode = "followers" | "following";
 type Row = {
@@ -102,17 +101,7 @@ export function FollowList({ mode }: { mode: Mode }) {
             <p className="text-muted-foreground">User not found.</p>
           </Card>
         ) : loading ? (
-          <ul className="divide-y divide-border rounded-lg border border-border/60 bg-card">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <li key={i} className="flex items-center gap-3 p-4">
-                <Skeleton className="h-10 w-10 rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-1/3" />
-                  <Skeleton className="h-3 w-1/4" />
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (
           <Card className="p-8 text-center border-dashed">
             <p className="text-muted-foreground">

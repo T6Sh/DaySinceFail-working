@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
-import { isAllowedSignupEmail, ALLOWED_EMAIL_HINT, INVALID_EMAIL_MESSAGE } from "@/lib/email";
+import { isAllowedSignupEmail, ALLOWED_EMAIL_HINT } from "@/lib/email";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 export default function Auth() {
@@ -59,7 +59,7 @@ export default function Auth() {
     try {
       if (mode === "signup") {
         if (!isAllowedSignupEmail(email)) {
-          throw new Error(INVALID_EMAIL_MESSAGE);
+          throw new Error(ALLOWED_EMAIL_HINT);
         }
         const { error } = await supabase.auth.signUp({
           email,
