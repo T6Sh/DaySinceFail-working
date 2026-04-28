@@ -2,10 +2,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { Trophy } from "lucide-react";
+import { NotificationsBell } from "@/components/NotificationsBell";
+import { useNotificationWatcher } from "@/hooks/useNotificationWatcher";
 
 export function Navbar() {
   const { user } = useAuth();
   const nav = useNavigate();
+  useNotificationWatcher();
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur">
@@ -22,6 +25,7 @@ export function Navbar() {
           </Link>
           {user ? (
             <>
+              <NotificationsBell />
               <Button variant="ghost" size="sm" onClick={() => nav("/dashboard")}>
                 Dashboard
               </Button>
