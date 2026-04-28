@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Trophy } from "lucide-react";
 
 export function Navbar() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const nav = useNavigate();
 
   return (
