@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Trophy } from "lucide-react";
 
 export function Navbar() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const nav = useNavigate();
 
   return (
@@ -27,9 +27,6 @@ export function Navbar() {
               </Button>
               <Button variant="ghost" size="sm" onClick={() => nav("/account")}>
                 Account
-              </Button>
-              <Button variant="outline" size="sm" onClick={async () => { await signOut(); nav("/"); }}>
-                Sign out
               </Button>
             </>
           ) : (

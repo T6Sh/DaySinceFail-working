@@ -5,75 +5,28 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { isAllowedSignupEmail, ALLOWED_EMAIL_HINT } from "@/lib/email";
-import { CheckCircle2, Loader2, Mail } from "lucide-react";
+import { User as UserIcon, AtSign, Mail, LogOut } from "lucide-react";
 
-type VerifyState = "idle" | "checking" | "ready" | "pending";
+type Profile = { username: string; display_name: string | null };
 
 export default function Account() {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const nav = useNavigate();
-  const [newEmail, setNewEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [verifyState, setVerifyState] = useState<VerifyState>("idle");
-  const [statusMsg, setStatusMsg] = useState<string>("");
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     if (!loading && !user) nav("/auth", { replace: true });
   }, [loading, user, nav]);
 
-  // Show pending banner if Supabase has a pending email change.
   useEffect(() => {
     if (!user) return;
-    // Supabase exposes `new_email` on the user when an email change is pending confirmation.
-    const pending = (user as any).new_email as string | undefined;
-    if (pending) {
-      setVerifyState("pending");
-      setStatusMsg(
-        `Pending: confirm the link sent to ${pending} to finalize your new email.`
-      );
-    } else {
-      setVerifyState("ready");
-      setStatusMsg(`Verified email: ${user.email}`);
-    }
+    supabase
+      .from("profiles")
+      .select("username, display_name")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => setProfile(data as Profile | null));
   }, [user]);
-
-  async function changeEmail(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) return;
-    const trimmed = newEmail.trim();
-    if (!trimmed) return;
-    if (trimmed.toLowerCase() === user.email?.toLowerCase()) {
-      return toast.error("That's already your email");
-    }
-    if (!isAllowedSignupEmail(trimmed)) {
-      setVerifyState("ready");
-      setStatusMsg(`Verified email: ${user.email}`);
-      return toast.error(ALLOWED_EMAIL_HINT);
-    }
-    setBusy(true);
-    setVerifyState("checking");
-    setStatusMsg("Sending confirmation link…");
-    const { error } = await supabase.auth.updateUser(
-      { email: trimmed },
-      { emailRedirectTo: `${window.location.origin}/account` }
-    );
-    setBusy(false);
-    if (error) {
-      setVerifyState("ready");
-      setStatusMsg(`Verified email: ${user.email}`);
-      return toast.error(error.message);
-    }
-    setVerifyState("pending");
-    setStatusMsg(
-      `Pending: confirm the link sent to ${trimmed} to finalize your new email.`
-    );
-    setNewEmail("");
-    toast.success("Confirmation email sent");
-  }
 
   if (loading || !user) {
     return (
@@ -84,54 +37,41 @@ export default function Account() {
     );
   }
 
+  const rows = [
+    { icon: UserIcon, label: "Name", value: profile?.display_name || "—" },
+    { icon: AtSign, label: "Username", value: profile?.username ? `@${profile.username}` : "—" },
+    { icon: Mail, label: "Email", value: user.email || "—" },
+  ];
+
   return (
     <div className="min-h-screen">
       <Navbar />
       <main className="container max-w-xl py-10">
         <h1 className="font-display text-3xl font-bold mb-6">Account</h1>
 
-        <Card className="p-6 mb-6">
-          <div className="flex items-start gap-3">
-            {verifyState === "checking" ? (
-              <Loader2 className="h-5 w-5 mt-0.5 animate-spin text-muted-foreground" />
-            ) : verifyState === "pending" ? (
-              <Mail className="h-5 w-5 mt-0.5 text-accent" />
-            ) : (
-              <CheckCircle2 className="h-5 w-5 mt-0.5 text-accent" />
-            )}
-            <div>
-              <div className="font-medium">
-                {verifyState === "pending"
-                  ? "Email change pending"
-                  : verifyState === "checking"
-                  ? "Working…"
-                  : "Email verified"}
+        <Card className="p-6 mb-6 divide-y divide-border">
+          {rows.map(({ icon: Icon, label, value }) => (
+            <div key={label} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+              <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+                <div className="font-medium truncate">{value}</div>
               </div>
-              <div className="text-sm text-muted-foreground">{statusMsg}</div>
             </div>
-          </div>
+          ))}
         </Card>
 
-        <Card className="p-6">
-          <h2 className="font-display text-xl font-bold mb-1">Change email</h2>
-          <p className="text-sm text-muted-foreground mb-4">{ALLOWED_EMAIL_HINT}</p>
-          <form onSubmit={changeEmail} className="space-y-4">
-            <div>
-              <Label htmlFor="new-email">New email</Label>
-              <Input
-                id="new-email"
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="you@gmail.com"
-                required
-              />
-            </div>
-            <Button disabled={busy || !newEmail.trim()}>
-              {busy ? "Sending…" : "Send confirmation"}
-            </Button>
-          </form>
-        </Card>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={async () => {
+            await signOut();
+            nav("/");
+          }}
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          Sign out
+        </Button>
       </main>
     </div>
   );
