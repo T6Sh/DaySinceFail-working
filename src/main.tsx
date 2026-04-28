@@ -1,9 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { bootReminders } from "./lib/reminders";
-
-bootReminders();
 
 // PWA / service worker safety: never run inside iframe or Lovable preview hosts
 const isInIframe = (() => {

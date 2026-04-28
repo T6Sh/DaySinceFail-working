@@ -5,16 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { User as UserIcon, AtSign, Mail, LogOut, Bell } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import {
-  enableReminderWithPermission,
-  getReminder,
-  ReminderSettings,
-} from "@/lib/reminders";
+import { User as UserIcon, AtSign, Mail, LogOut } from "lucide-react";
 
 type Profile = { username: string; display_name: string | null };
 
@@ -22,8 +13,6 @@ export default function Account() {
   const { user, loading, signOut } = useAuth();
   const nav = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [reminder, setReminder] = useState<ReminderSettings>(getReminder());
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) nav("/auth", { replace: true });
@@ -54,27 +43,6 @@ export default function Account() {
     { icon: Mail, label: "Email", value: user.email || "—" },
   ];
 
-  const timeStr = `${String(reminder.hour).padStart(2, "0")}:${String(reminder.minute).padStart(2, "0")}`;
-
-  const persist = async (next: ReminderSettings) => {
-    setSaving(true);
-    const ok = await enableReminderWithPermission(next);
-    setSaving(false);
-    if (next.enabled && !ok) {
-      setReminder({ ...next, enabled: false });
-      toast({
-        title: "Notifications blocked",
-        description: "Allow notifications in your browser/device settings to enable reminders.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setReminder(next);
-    if (next.enabled) {
-      toast({ title: "Reminder set", description: `Daily nudge at ${timeStr}.` });
-    }
-  };
-
   return (
     <div className="min-h-screen">
       <Navbar />
@@ -91,39 +59,6 @@ export default function Account() {
               </div>
             </div>
           ))}
-        </Card>
-
-        <Card className="p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Bell className="h-5 w-5 text-muted-foreground" />
-            <div className="flex-1">
-              <div className="font-medium">Daily streak reminder</div>
-              <div className="text-xs text-muted-foreground">
-                Get a notification every day so you don't forget to check in.
-              </div>
-            </div>
-            <Switch
-              checked={reminder.enabled}
-              disabled={saving}
-              onCheckedChange={(v) => persist({ ...reminder, enabled: v })}
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <Label htmlFor="reminder-time" className="text-sm">Time</Label>
-            <Input
-              id="reminder-time"
-              type="time"
-              value={timeStr}
-              disabled={saving}
-              onChange={(e) => {
-                const [h, m] = e.target.value.split(":").map(Number);
-                if (Number.isFinite(h) && Number.isFinite(m)) {
-                  persist({ ...reminder, hour: h, minute: m });
-                }
-              }}
-              className="max-w-[140px]"
-            />
-          </div>
         </Card>
 
         <Button
