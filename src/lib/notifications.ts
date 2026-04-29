@@ -16,7 +16,30 @@ export type StoredNotif = {
 };
 
 const KEY = (uid: string) => `notifs:${uid}`;
+const PREFS_KEY = (uid: string) => `notifs:prefs:${uid}`;
 const MAX = 100;
+
+export type NotifPrefs = { follow: boolean; streak_reset: boolean };
+const DEFAULT_PREFS: NotifPrefs = { follow: true, streak_reset: true };
+
+export function getNotifPrefs(uid: string): NotifPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY(uid));
+    if (!raw) return { ...DEFAULT_PREFS };
+    return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_PREFS };
+  }
+}
+
+export function setNotifPrefs(uid: string, prefs: NotifPrefs) {
+  localStorage.setItem(PREFS_KEY(uid), JSON.stringify(prefs));
+  window.dispatchEvent(new CustomEvent("notifs:update"));
+}
+
+export function isKindEnabled(uid: string, kind: NotifKind): boolean {
+  return getNotifPrefs(uid)[kind] !== false;
+}
 
 export function getNotifs(uid: string): StoredNotif[] {
   try {
