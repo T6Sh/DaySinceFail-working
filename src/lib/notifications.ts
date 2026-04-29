@@ -107,6 +107,7 @@ async function fireOSNotification(title: string, body: string) {
 }
 
 export async function pushNotif(uid: string, n: Omit<StoredNotif, "id" | "createdAt" | "read">) {
+  if (!isKindEnabled(uid, n.kind)) return;
   const entry: StoredNotif = {
     ...n,
     id: crypto.randomUUID(),
