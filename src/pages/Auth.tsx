@@ -126,7 +126,7 @@ export default function Auth() {
             </div>
           )}
 
-          {mode !== "forgot" && (
+          {/* {mode !== "forgot" && (
             <>
               <Button variant="outline" className="w-full mb-4" onClick={google} type="button">
                 Continue with Google
@@ -137,7 +137,7 @@ export default function Auth() {
                 <div className="h-px flex-1 bg-border" />
               </div>
             </>
-          )}
+          )} */}
 
           <form onSubmit={submit} className="space-y-4">
             {mode === "signup" && (
